@@ -1,7 +1,7 @@
 import os
 import yaml
 import base64
-from crewai import Agent, Crew, Process, Task
+from crewai import Agent, Crew, Process, Task, LLM
 from crewai.project import CrewBase, agent, crew, task
 from dotenv import load_dotenv
 from src.tools import (
@@ -14,9 +14,14 @@ from src.models import RecipeSuggestionOutput, NutrientAnalysisOutput
 from io import BytesIO
 
 load_dotenv()
-WATSONX_API_KEY = os.environ.get('WATSONX_API_KEY')
-WATSONX_URL = os.environ.get('WATSONX_URL')
-WATSONX_PROJECT_ID = os.environ.get('WATSONX_PROJECT_ID')
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
+
+# Initialize OpenRouter LLM for CrewAI
+llm = LLM(
+    model="openrouter/gpt-4o-mini",
+    api_key=OPENROUTER_API_KEY,
+    base_url="https://openrouter.ai/api/v1"
+) if OPENROUTER_API_KEY else None
 
 # Get the absolute path to the config directory
 CONFIG_DIR = os.path.join(os.path.dirname(__file__), "config")
@@ -45,7 +50,8 @@ class BaseNourishBotCrew:
                 FilterIngredientsTool.filter_ingredients
             ],
             allow_delegation=False,
-            verbose=True
+            verbose=True,
+            llm=llm
         )
 
     @agent
@@ -55,7 +61,8 @@ class BaseNourishBotCrew:
             tools=[DietaryFilterTool.filter_based_on_restrictions],
             allow_delegation=True,
             max_iter=6,
-            verbose=True
+            verbose=True,
+            llm=llm
         )
 
     @agent
@@ -65,7 +72,8 @@ class BaseNourishBotCrew:
             tools=[NutrientAnalysisTool.analyze_image],
             allow_delegation=False,
             max_iter=4,
-            verbose=True
+            verbose=True,
+            llm=llm
         )
 
     @agent
@@ -77,7 +85,8 @@ class BaseNourishBotCrew:
                 'nutrient_info': outputs['nutrient_analysis_task']
             },
             allow_delegation=False,
-            verbose=True
+            verbose=True,
+            llm=llm
         )
 
     @agent
@@ -85,7 +94,8 @@ class BaseNourishBotCrew:
         return Agent(
             config=self.agents_config['recipe_suggestion_agent'],
             allow_delegation=False,
-            verbose=True
+            verbose=True,
+            llm=llm
         )
 
     @task

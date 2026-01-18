@@ -7,7 +7,28 @@ from crew import NourishBotAnalysisCrew, NourishBotRecipeCrew
 
 # Load environment variables (e.g., API keys)
 load_dotenv()
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+OPENAI_API_KEY = os.environ.get('OPENROUTER_API_KEY')
+
+def train(n_iterations: int, output_filename: str, image_path: str, dietary_restrictions: str, workflow_type: str):
+    """Train the model by running multiple iterations and logging outputs."""
+    print(f"## Starting training with {n_iterations} iterations")
+    print('------------------------------------')
+    
+    results = []
+    for i in range(n_iterations):
+        print(f"\nIteration {i+1}/{n_iterations}")
+        try:
+            run(image_path, dietary_restrictions, workflow_type)
+            results.append(f"Iteration {i+1}: Success")
+        except Exception as e:
+            results.append(f"Iteration {i+1}: Failed - {str(e)}")
+    
+    # Save results to output file
+    with open(output_filename, 'w') as f:
+        for result in results:
+            f.write(result + "\n")
+    
+    print(f"\nTraining completed. Results saved to {output_filename}")
 
 def run(image_path: str, dietary_restrictions: str, workflow_type: str):
     print("## Welcome to the AI NourishBot Crew")

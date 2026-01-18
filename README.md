@@ -125,12 +125,3 @@ Smart-Nutritional-App-Crew/
 
 Contributions are welcome! If you have suggestions for improvements or new features, please create a pull request or open an issue.
 
-## License
-
-### License
-This project is licensed under the **Hailey Thao Quach's Non-Commercial License**. See the `LICENSE` file for details.
-
-
-## Contact
-
-For any questions or support, please contact [Hailey Thao Quach](mailto:hailey@haileyq.com).

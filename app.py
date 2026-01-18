@@ -1,7 +1,12 @@
 import gradio as gr
 import base64
 import time
+import os
+from dotenv import load_dotenv
 from src.crew import NourishBotRecipeCrew, NourishBotAnalysisCrew
+
+# Load environment variables from .env file
+load_dotenv()
 
 def format_recipe_output(final_output):
     """

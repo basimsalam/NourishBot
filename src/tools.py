@@ -5,24 +5,41 @@ import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
 from PIL import Image
-from ibm_watsonx_ai import Credentials
-from ibm_watsonx_ai.foundation_models import ModelInference
 from io import BytesIO
 from typing import List, Optional
 import logging
+
 logging.basicConfig(level=logging.INFO)
+load_dotenv()
 
-logging.info("Extracting ingredients from image...")
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-# Load environment variables (e.g., API keys)
-WATSONX_API_KEY = os.environ.get('WATSONX_API_KEY')
-WATSONX_URL = os.environ.get('WATSONX_URL')
-WATSONX_PROJECT_ID = os.environ.get('WATSONX_PROJECT_ID')
 
-credentials = Credentials(
-    url=WATSONX_URL,
-    api_key=WATSONX_API_KEY
-)
+def call_openrouter_vision(messages, model="gpt-4o-mini"):
+    """Helper function to call OpenRouter API with vision capabilities."""
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    
+    payload = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": 300,
+    }
+    
+    response = requests.post(
+        f"{OPENROUTER_BASE_URL}/chat/completions",
+        headers=headers,
+        json=payload
+    )
+    
+    if response.status_code != 200:
+        raise Exception(f"OpenRouter API error: {response.status_code} - {response.text}")
+    
+    return response.json()['choices'][0]['message']['content']
+
 
 class ExtractIngredientsTool():
     @tool("Extract ingredients")
@@ -48,26 +65,18 @@ class ExtractIngredientsTool():
         # Encode the image to a base64 string
         encoded_image = base64.b64encode(image_bytes.read()).decode("utf-8")
 
-        # Call the model with the encoded image
-        model = ModelInference(
-            model_id="meta-llama/llama-3-2-90b-vision-instruct",
-            credentials=credentials,
-            project_id=WATSONX_PROJECT_ID,
-            params={"max_tokens": 300},
-        )
-        response = model.chat(
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Extract ingredients from the food item image"},
-                        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + encoded_image}}
-                    ],
-                }
-            ]
-        )
-
-        return response['choices'][0]['message']['content']
+        # Call OpenRouter with the encoded image
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Extract ingredients from the food item image. List each ingredient clearly."},
+                    {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + encoded_image}}
+                ],
+            }
+        ]
+        
+        return call_openrouter_vision(messages)
 
 
 class FilterIngredientsTool:
@@ -98,14 +107,6 @@ class DietaryFilterTool:
         if not dietary_restrictions:
             return ingredients
 
-        # Initialize the WatsonX model
-        model = ModelInference(
-            model_id="ibm/granite-3-8b-instruct",
-            credentials=credentials,
-            project_id=WATSONX_PROJECT_ID,
-            params={"max_tokens": 150},
-        )
-
         # Create a prompt for the LLM to filter ingredients
         prompt = f"""
         You are an AI nutritionist specialized in dietary restrictions. 
@@ -115,20 +116,15 @@ class DietaryFilterTool:
         Return only the compliant ingredients as a comma-separated list with no additional commentary.
         """
 
-        # Send the prompt to the model for filtering
-        response = model.chat(
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt}
-                    ],
-                }
-            ]
-        )
-
-        # Parse the response to return the filtered list
-        filtered = response['choices'][0]['message']['content'].strip().lower()
+        # Call OpenRouter
+        messages = [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+        
+        filtered = call_openrouter_vision(messages, model="gpt-4o-mini")
         filtered_list = [item.strip() for item in filtered.split(',') if item.strip()]
         return filtered_list
 
@@ -157,13 +153,6 @@ class NutrientAnalysisTool():
         # Encode the image to a base64 string
         encoded_image = base64.b64encode(image_bytes.read()).decode("utf-8")
 
-        # Call the model with the encoded image
-        model = ModelInference(
-            model_id="meta-llama/llama-3-2-90b-vision-instruct",
-            credentials=credentials,
-            project_id=WATSONX_PROJECT_ID,
-            params={"max_tokens": 300},
-        )
         # Assistant prompt (can be customized)
         assistant_prompt = """
             You are an expert nutritionist. Your task is to analyze the food items displayed in the image and provide a detailed nutritional assessment using the following format:
@@ -186,16 +175,16 @@ class NutrientAnalysisTool():
         For precise dietary advice or medical guidance, consult a qualified nutritionist or healthcare provider.
         Format your response exactly like the template above to ensure consistency.
         """
-        response = model.chat(
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": assistant_prompt},
-                        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + encoded_image}}
-                    ],
-                }
-            ]
-        )
-
-        return response['choices'][0]['message']['content']
+        
+        # Call OpenRouter with the encoded image
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": assistant_prompt},
+                    {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + encoded_image}}
+                ],
+            }
+        ]
+        
+        return call_openrouter_vision(messages, model="gpt-4o")
